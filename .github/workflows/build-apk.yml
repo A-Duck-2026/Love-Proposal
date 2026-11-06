@@ -1,0 +1,92 @@
+name: Build Flutter Web Release
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Flutter Web Release
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------------------------------------------------------
+      # Checkout
+      # ---------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ---------------------------------------------------------
+      # Java
+      # ---------------------------------------------------------
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # ---------------------------------------------------------
+      # Flutter
+      # ---------------------------------------------------------
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Check Flutter version
+        run: flutter --version
+
+      # ---------------------------------------------------------
+      # Build Web Release
+      # ---------------------------------------------------------
+      - name: Build Flutter Web Release
+        run: flutter build web --release --base-href "/Love-Proposal/"
+
+      # ---------------------------------------------------------
+      # Prepare Web Release
+      # ---------------------------------------------------------
+      - name: Prepare Web Release
+        run: |
+          mkdir -p /tmp/web-release
+          cp -r build/web/. /tmp/web-release/
+
+      # ---------------------------------------------------------
+      # Create or Checkout Web Release Branch
+      # ---------------------------------------------------------
+      - name: Setup Web Release Branch
+        run: |
+          if git ls-remote --exit-code --heads origin web-release; then
+            git fetch origin web-release
+            git switch -C web-release origin/web-release
+          else
+            git switch --orphan web-release
+          fi
+
+          git rm -rf . || true
+          git clean -fdx
+
+          cp -r /tmp/web-release/. .
+          touch .nojekyll
+
+      # ---------------------------------------------------------
+      # Commit Web Release
+      # ---------------------------------------------------------
+      - name: Commit Web Release
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "Deploy Flutter Web Release"
+          branch: web-release
+          file_pattern: .
